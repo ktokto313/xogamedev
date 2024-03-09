@@ -1,12 +1,28 @@
+mod model;
+mod error;
+mod controller;
+mod DAO;
 mod game;
+
+use std::collections::HashMap;
+use std::sync::Arc;
 use log;
-use crate::game::start_game;
+use tokio::sync::RwLock;
+use crate::model::player::Player;
+use crate::model::session::{Session, SessionID};
 
-fn main() {
-    //TODO: XO game where slot is indexed from 1 to 9 from left to right and top to bottom1
+#[tokio::main]
+async fn main() {
     env_logger::init();
+    //TODO: DI for DAO
 
-    start_game()
+    //create game session, create new thread, move game session there and start
+    //when user login, check player for session_id
+    let active_sessions = Arc::new(RwLock::new(HashMap::<SessionID, Session>::new()));
+    //when player2 want to join, give them something
+
 }
+
+
 
 
