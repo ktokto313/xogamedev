@@ -1,6 +1,5 @@
 use std::io;
 use crate::game::Game;
-use crate::model::Game;
 
 //TODO we need to standardize games so we can have multiple game implementation
 //A game module need player1 and player2 input stream, then someway to start, stop and get result

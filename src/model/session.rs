@@ -1,17 +1,19 @@
+use serde::Deserialize;
 use crate::game::Game;
 use crate::model::player::Player;
 
-pub struct Session {
+#[derive(Clone, Deserialize)]
+pub struct Session<T> {
     session_id: SessionID,
     players: [Option<Player>; 2],
-    game: Box<dyn Game>,
+    game: T,
 }
 
-#[derive(Eq, PartialEq, Hash)]
-pub struct SessionID(String);
+#[derive(Eq, PartialEq, Hash, Clone, Deserialize)]
+pub struct SessionID(pub(crate) String);
 
-impl Session {
-    pub fn new(player: Player, game: Box<dyn Game>) -> Session {
+impl<T: Game> Session<T> {
+    pub fn new(player: Player, game: T) -> Self {
         Session {
             session_id: Self::generate_session_id(),
             players: [Some(player), None],
@@ -34,5 +36,5 @@ impl Session {
 
     pub fn get_session_id(&self) -> SessionID {self.session_id.clone()}
 
-    pub fn get_player1_name(&self) -> String {self.players[1]?.get_username()}
+    pub fn get_player1_name(&self) -> String {self.players[1].clone().unwrap().get_username()}
 }

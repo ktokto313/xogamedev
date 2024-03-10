@@ -1,5 +1,7 @@
+use serde::Deserialize;
 use crate::model::session::SessionID;
 
+#[derive(Clone, Deserialize)]
 pub struct Player {
     username: String,
     password: String,
@@ -7,7 +9,7 @@ pub struct Player {
 }
 
 impl Player {
-    fn new(username: String, password: String) -> Player {
+    pub(crate) fn new(username: String, password: String) -> Player {
         Player {
             username,
             password,
@@ -20,4 +22,6 @@ impl Player {
     }
 
     pub fn get_username(&self) -> String {self.username.clone()}
+
+    pub fn get_password(&self) -> String {self.password.clone()}
 }

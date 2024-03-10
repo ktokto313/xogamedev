@@ -1,2 +1,2 @@
 pub mod authentication;
-mod session_controller;
+pub mod session_controller;
