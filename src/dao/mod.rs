@@ -1,6 +1,7 @@
 use sqlx::Error;
-use warp::http::StatusCode;
+use crate::game::Game;
 use crate::model::player::Player;
+use crate::model::session::Session;
 
 pub mod postgres;
 
@@ -8,6 +9,7 @@ pub trait Database {
     async fn login(&self, player: Player) -> Result<bool, Error>;
 
     async fn register(&self, player: Player) -> Result<bool, Error>;
+    async fn save_session(&self, session: Session<impl Game + Clone>, result: i32);
 }
 
 #[derive(Clone)]
@@ -28,5 +30,9 @@ impl<T: Database> DAO<T> {
 
     pub async fn login(&self, player: Player) -> Result<bool, sqlx::Error> {
         self.database.login(player).await
+    }
+
+    pub async fn save_session(&self, session: Session<impl Game + Clone>, result: i32) {
+        self.database.save_session(session, result).await
     }
 }

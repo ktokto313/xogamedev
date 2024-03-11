@@ -1,6 +1,5 @@
 use crate::dao::Database;
 use warp::http::StatusCode;
-use warp::{Rejection, Reply};
 use crate::model::player::Player;
 use crate::dao::DAO;
 use crate::error::Error;

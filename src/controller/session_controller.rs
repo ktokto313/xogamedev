@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
+use warp::http::StatusCode;
+use crate::dao::{DAO, Database};
 use crate::game::Game;
 use crate::model::player::Player;
 use crate::model::session::{Session, SessionID};
@@ -13,25 +15,28 @@ pub async fn create_session(active_session: Arc<RwLock<HashMap<SessionID,
         _ => XO::new()
     };
     let session = Session::new(player, game);
-    active_session.write().await.insert(session.get_session_id().clone(), session);
-    Ok(warp::reply())
+    active_session.write().await.insert(session.get_session_id().clone(), session.clone());
+    Ok(warp::reply::with_status(session.get_session_id().0, StatusCode::OK))
 }
 
 pub async fn get_session(active_sessions: Arc<RwLock<HashMap<SessionID,
-    Session<impl Game>>>>) -> Result<impl warp::Reply, warp::Rejection> {
+     Session<impl Game + Clone>>>>) -> Result<impl warp::Reply, warp::Rejection> {
     let mut result:Vec<(String, String)> = Vec::<(String, String)>::new();
     for (sessionID, session) in active_sessions.read().await.iter() {
         result.push((sessionID.0.clone(), session.get_player1_name()))
     }
-    Ok(warp::reply())
+    Ok(warp::reply::json(&result))
 }
 
-pub async fn join_session(mut active_sessions: Arc<RwLock<HashMap<SessionID,
-    Session<impl Game>>>>, session_id: String, player2: Player) -> Result<impl warp::Reply, warp::Rejection> {
-    match active_sessions.write().await.remove(&SessionID(session_id)) {
-        Some(mut session) => session.add_player2(player2),
-        None => () //Do error return thingy here
+pub async fn join_session(active_sessions: Arc<RwLock<HashMap<SessionID,
+    Session<impl Game + 'static + Clone>>>>, session_id: String, player2: Player) -> Result<impl warp::Reply, warp::Rejection> {
+    match active_sessions.write().await.remove(&SessionID(session_id.clone())) {
+        Some(mut session) => {
+            session.add_player2(player2);
+            tokio::spawn(session.start());
+        },
+        None => return Err(warp::reject::custom(crate::Error::BadRequest))
     }
-    Ok(warp::reply())
+    Ok(warp::reply::with_status(session_id.clone(), StatusCode::OK))
     //TODO this is fail-able, make sure to return the right thing
 }

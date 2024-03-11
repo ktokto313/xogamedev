@@ -12,17 +12,17 @@ use tokio::sync::RwLock;
 use warp::{Filter, Rejection};
 use warp::body::BodyDeserializeError;
 use warp::http::StatusCode;
-use crate::controller::{authentication, session_controller};
-use crate::controller::authentication::login;
+use crate::controller::{authentication_controller, session_controller};
+use crate::controller::authentication_controller::login;
 use crate::dao::DAO;
-use crate::dao::postgres::Postgres_DB;
+use crate::dao::postgres::PostgresDB;
 use crate::error::Error;
 use crate::game::Game;
 use crate::game::xo::XO;
 use crate::model::player::Player;
 use crate::model::session::{Session, SessionID};
 
-#[tokio::main]
+#[tokio::main(flavor = "multi_thread", worker_threads = 16)]
 async fn main() {
     env_logger::init();
     //TODO: DI for dao
@@ -34,7 +34,7 @@ async fn main() {
     //when player2 want to join, give them something
 
     let db_url = "postgres://postgres:3132006kto@localhost:5432/xogamedev";
-    let database = Postgres_DB::new(db_url).await;
+    let database = PostgresDB::new(db_url).await;
     let dao = DAO::new(database);
 
     let dao_filter = warp::any().map(move || {dao.clone()});
@@ -49,7 +49,7 @@ async fn main() {
         .and(warp::body::json())
         .and(dao_filter.clone())
         .and(warp::path::end())
-        .and_then(authentication::login);
+        .and_then(authentication_controller::login);
 
     let register_filter = warp::post()
         .and(domain_filter)
@@ -57,7 +57,7 @@ async fn main() {
         .and(warp::path::end())
         .and(warp::body::json())
         .and(dao_filter.clone())
-        .and_then(authentication::register);
+        .and_then(authentication_controller::register);
 
     let create_session_filter = warp::post()
         .and(domain_filter)
@@ -66,6 +66,7 @@ async fn main() {
         .and(warp::path::end())
         .and(warp::body::json())
         .and(xo_filter)
+        .and(dao_filter)
         .and_then(session_controller::create_session);
 
     let get_session_filter = warp::get()
