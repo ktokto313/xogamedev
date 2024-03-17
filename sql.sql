@@ -14,3 +14,5 @@ create table session (
 	result text,
 	created_on timestamp default now()
 );
+
+insert into player(username, password) values ('kto', 'kto');

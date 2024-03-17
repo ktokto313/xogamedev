@@ -32,7 +32,7 @@ impl<T: Database> DAO<T> {
         self.database.login(player).await
     }
 
-    pub async fn save_session(&self, session: Session<impl Game + Clone>, result: i32) {
+    pub async fn save_session(self, session: Session<impl Game + Clone>, result: i32) {
         self.database.save_session(session, result).await
     }
 }

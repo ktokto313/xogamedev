@@ -49,7 +49,7 @@ impl Database for PostgresDB {
         }
     }
 
-    async fn save_session(&self, session: Session<impl Game>, result: i32) {
+    async fn save_session(&self, session: Session<impl Game + Clone>, result: i32) {
         match sqlx::query("insert into session(player1_username, player2_username, result)\
         values ($1, $2, $3)")
             .bind(session.players[0].clone().unwrap().get_username())

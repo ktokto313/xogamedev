@@ -1,9 +1,11 @@
+use serde::{Deserialize, Serialize};
 use crate::game::Game;
 
 //TODO we need to standardize games so we can have multiple game implementation
 //A game module need player1 and player2 input stream, then someway to start, stop and get result
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct XO {
+    #[serde(borrow)]
     board: [[&'static str;3];3],
     number_of_move: i32,
     is_x: bool

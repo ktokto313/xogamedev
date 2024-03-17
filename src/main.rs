@@ -4,6 +4,7 @@ mod controller;
 mod dao;
 mod game;
 
+use crate::controller::session_controller;
 use std::collections::HashMap;
 use std::sync::Arc;
 use log;
@@ -12,14 +13,12 @@ use tokio::sync::RwLock;
 use warp::{Filter, Rejection};
 use warp::body::BodyDeserializeError;
 use warp::http::StatusCode;
-use crate::controller::{authentication_controller, session_controller};
-use crate::controller::authentication_controller::login;
+use crate::controller::{authentication_controller, multithread_session_controller};
 use crate::dao::DAO;
 use crate::dao::postgres::PostgresDB;
 use crate::error::Error;
 use crate::game::Game;
 use crate::game::xo::XO;
-use crate::model::player::Player;
 use crate::model::session::{Session, SessionID};
 
 #[tokio::main(flavor = "multi_thread", worker_threads = 16)]
@@ -30,7 +29,18 @@ async fn main() {
     //create game session, create new thread, move game session there and start
     //when user login, check player for session_id
 
-    let session_list = Arc::new(RwLock::new(HashMap::<SessionID, Session<XO>>::new()));
+    let log = warp::log::custom(|info| {
+        eprintln!("{} {} {} {:?} from {} with {:?}",
+                  info.method(),
+                  info.path(),
+                  info.status(),
+                  info.elapsed(),
+                  info.remote_addr().unwrap(),
+                  info.request_headers()
+        )
+    });
+
+    let session_list = Arc::new(RwLock::new(HashMap::<SessionID,RwLock<Session<XO>>>::new()));
     //when player2 want to join, give them something
 
     let db_url = "postgres://postgres:3132006kto@localhost:5432/xogamedev";
@@ -40,8 +50,8 @@ async fn main() {
     let dao_filter = warp::any().map(move || {dao.clone()});
     let session_list_filter = warp::any().map(move || {session_list.clone()});
     let xo_filter = warp::any().map(|| {"XO".to_string()});
-    let session_id_filter = warp::any().and(warp::path::param()).map(|session_id:String| {session_id});
     let domain_filter = warp::any().and(warp::path("xogamedev"));
+    //TODO insert session_list_filter instead session_filter into functions
 
     let login_filter = warp::post()
         .and(domain_filter)
@@ -66,7 +76,6 @@ async fn main() {
         .and(warp::path::end())
         .and(warp::body::json())
         .and(xo_filter)
-        .and(dao_filter)
         .and_then(session_controller::create_session);
 
     let get_session_filter = warp::get()
@@ -79,17 +88,50 @@ async fn main() {
     let join_session_filter = warp::post()
         .and(domain_filter)
         .and(warp::path("join_session"))
-        .and(session_list_filter)
-        .and(session_id_filter)
+        .and(warp::path::param())
+        .and(session_list_filter.clone())
         .and(warp::body::json())
         .and_then(session_controller::join_session);
+
+    let make_a_move_filter = warp::post()
+        .and(domain_filter)
+        .and(warp::path::param())
+        .and(warp::path("make_a_move"))
+        .and(warp::path::end())
+        .and(session_list_filter.clone())
+        .and(warp::query())
+        .and(warp::body::json())
+        .and(dao_filter.clone())
+        .and_then(session_controller::handle_make_a_move);
+
+    let wait_for_move_filter = warp::post()
+        .and(domain_filter.clone())
+        .and(warp::path::param())
+        .and(warp::path::end())
+        .and(session_list_filter.clone())
+        .and(warp::body::json())
+        .and_then(session_controller::handle_wait_for_move);
+
+    let surrender_filter = warp::post()
+        .and(domain_filter.clone())
+        .and(warp::path("surrender"))
+        .and(warp::path::param())
+        .and(warp::path::end())
+        .and(session_list_filter.clone())
+        .and(warp::body::json())
+        .and(dao_filter.clone())
+        .and_then(session_controller::handle_surrender);
 
     let filter = login_filter
         .or(register_filter)
         .or(create_session_filter)
         .or(get_session_filter)
         .or(join_session_filter)
-        .recover(handle_error);
+        .or(make_a_move_filter)
+        .or(wait_for_move_filter)
+        .or(surrender_filter)
+        .recover(handle_error)
+        .with(log);
 
     warp::serve(filter)
         .run(([127, 0, 0, 1], 1337))
@@ -103,9 +145,12 @@ async fn handle_error(r: Rejection) -> Result<impl warp::Reply, warp::Rejection>
     } else if let Some(Error::InvalidMove) = r.find() {
         error!("Invalid action");
         Ok(warp::reply::with_status("Invalid action, please try again".to_string(), StatusCode::BAD_REQUEST))
-    } else if let Some(Error::BadRequest) = r.find() {
+    } else if let Some(Error::AuthenticationFail) = r.find() {
         error!("Username duplicate or wrong username/password");
         Ok(warp::reply::with_status("Username duplicate or wrong username/password".to_string(), StatusCode::BAD_REQUEST))
+    } else if let Some(Error::SessionNotExist) = r.find() {
+        error!("User tried to join a session that's not exist anymore");
+        Ok(warp::reply::with_status("User tried to join a session that's not exist anymore".to_string(), StatusCode::BAD_REQUEST))
     } else if let Some(Error::Unauthorized) = r.find() {
         error!("User not logged in");
         Ok(warp::reply::with_status("You are not logged in".to_string(), StatusCode::UNAUTHORIZED))
