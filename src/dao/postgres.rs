@@ -61,9 +61,9 @@ impl Database for PostgresDB {
             Err(_) => {}
             //TODO implement this
         };
-        sqlx::query("delete from session where created_on not in (select created_on from session order_by created_on desc limit 50)")
+        sqlx::query("delete from session where created_on not in (select created_on from session order by created_on desc limit 50)")
             .execute(&self.pool)
             .await
-            .expect("True or fail boom boom");
+            .expect("Failed to delete to 50 session records");
     }
 }

@@ -95,11 +95,10 @@ async fn main() {
 
     let make_a_move_filter = warp::post()
         .and(domain_filter)
-        .and(warp::path::param())
         .and(warp::path("make_a_move"))
+        .and(warp::path::param())
         .and(warp::path::end())
         .and(session_list_filter.clone())
-        .and(warp::query())
         .and(warp::body::json())
         .and(dao_filter.clone())
         .and_then(session_controller::handle_make_a_move);
@@ -122,6 +121,12 @@ async fn main() {
         .and(dao_filter.clone())
         .and_then(session_controller::handle_surrender);
 
+    let scoreboard_filter = warp::post()
+        .and(domain_filter.clone())
+        .and(warp::path("scoreboard"))
+        .and(warp::path::end())
+        .and_then(session_controller::handle_scoreboard);
+
     let filter = login_filter
         .or(register_filter)
         .or(create_session_filter)
@@ -130,6 +135,7 @@ async fn main() {
         .or(make_a_move_filter)
         .or(wait_for_move_filter)
         .or(surrender_filter)
+        .or(scoreboard_filter)
         .recover(handle_error)
         .with(log);
 

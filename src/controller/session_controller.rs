@@ -3,6 +3,7 @@ use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use warp::http::StatusCode;
+use warp::path::param;
 use crate::dao::{DAO, Database};
 use crate::error::Error;
 use crate::error::Error::SessionNotExist;
@@ -73,9 +74,11 @@ pub async fn clean_up_session(
 // }
 
 pub async fn handle_make_a_move(
-    session_id: String, active_sessions: Arc<RwLock<HashMap<SessionID, RwLock<Session<XO>>>>>,
-    params: HashMap<String, String>, player: Player, dao: DAO<impl Database>
+    session_id: String,
+    active_sessions: Arc<RwLock<HashMap<SessionID, RwLock<Session<XO>>>>>,
+    params: HashMap<String, String>, dao: DAO<impl Database>
 ) -> Result<impl warp::Reply, warp::Rejection> {
+    println!("handle make a move");
     if let None = active_sessions.read().await.get(&SessionID(session_id.clone())) {
         return Err(warp::reject::custom(SessionNotExist));
     }
@@ -83,23 +86,28 @@ pub async fn handle_make_a_move(
     let session = session.get(&SessionID(session_id)).unwrap();
     let mut session = session.write().await;
 
+    let mut player = Player::new(
+        params.get("username").unwrap_or(&"".to_string()).clone(),
+        params.get("password").unwrap_or(&"".to_string()).clone()
+    );
+    player.set_session_id(session.get_session_id().clone());
+
     if !auth(session.deref_mut(), player).await {
         return Err(warp::reject::custom(Error::Unauthorized));
     }
 
     match params.get("move") {
         Some(value) => {
-            let mut status = 0;
-            {
-                status = session.game.make_a_move(value.parse::<usize>().unwrap());
-                session.turn = (session.turn + 1) % 2;
-            }
+            let mut status : usize = 0;
+            status = session.game.make_a_move(value.parse::<usize>().unwrap());
+            session.status = status;
+            session.turn = (session.turn + 1) % 2;
 
             match status {
                 1..=3 => {
                     session.end = true;
-                    dao.save_session(session.clone(), status).await;
-                    Ok(warp::reply::with_status(status.to_string(), StatusCode::OK))
+                    dao.save_session(session.clone(), status as i32).await;
+                    Ok(warp::reply::with_status(format!("{} {}", session.status.to_string(), session.game.print()), StatusCode::OK))
                 }
                 _ => Ok(warp::reply::with_status(session.game.print(), StatusCode::OK))
             }
@@ -112,6 +120,7 @@ pub async fn handle_wait_for_move(
     session_id: String, active_sessions: Arc<RwLock<HashMap<SessionID, RwLock<Session<XO>>>>>,
     player: Player
 ) -> Result<impl warp::Reply, warp::Rejection> {
+    println!("handle wait for move");
     if let None = active_sessions.read().await.get(&SessionID(session_id.clone())) {
         return Err(warp::reject::custom(SessionNotExist));
     }
@@ -119,15 +128,23 @@ pub async fn handle_wait_for_move(
     let session = session.get(&SessionID(session_id)).unwrap();
     let mut session = session.write().await;
 
+    if session.can_join() {
+        return Ok(warp::reply::with_status(false.to_string(), StatusCode::OK));
+    }
+
+    if session.end {
+        return Ok(warp::reply::with_status(format!("{} {}", session.status.to_string(), session.game.print()), StatusCode::OK));
+    }
+
     if session.players[0].clone().unwrap() == player {
         if session.turn == 0 {
-            Ok(warp::reply::with_status(true.to_string(), StatusCode::OK))
+            Ok(warp::reply::with_status(session.game.print(), StatusCode::OK))
         } else {
             Ok(warp::reply::with_status(false.to_string(), StatusCode::OK))
         }
     } else if session.players[1].clone().unwrap() == player {
         if session.turn == 1 {
-            Ok(warp::reply::with_status(true.to_string(), StatusCode::OK))
+            Ok(warp::reply::with_status(session.game.print(), StatusCode::OK))
         } else {
             Ok(warp::reply::with_status(false.to_string(), StatusCode::OK))
         }
@@ -140,6 +157,7 @@ pub async fn handle_surrender(
     session_id: String, active_sessions: Arc<RwLock<HashMap<SessionID, RwLock<Session<XO>>>>>,
     player: Player, dao: DAO<impl Database>
 ) -> Result<impl warp::Reply, warp::Rejection> {
+    println!("handle surrender");
     if let None = active_sessions.read().await.get(&SessionID(session_id.clone())) {
         return Err(warp::reject::custom(SessionNotExist));
     }
@@ -162,10 +180,12 @@ pub async fn handle_surrender(
     }
 }
 
-async fn save_and_shutdown(mut session: &mut Session<impl Game + Clone>, status: i32, dao: DAO<impl Database>) {
+//todo implement scoreboard
+
+async fn save_and_shutdown(mut session: &mut Session<impl Game + Clone>, status: usize, dao: DAO<impl Database>) {
     //TODO connect to DB and do shutdown
     session.end = true;
-    dao.save_session(session.clone(), status).await;
+    dao.save_session(session.clone(), status as i32).await;
 }
 
 async fn auth(session: &Session<impl Game + Clone>, player: Player) -> bool {

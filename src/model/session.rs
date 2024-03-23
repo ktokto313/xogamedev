@@ -15,21 +15,25 @@ pub struct Session<T> where T: Game + Clone {
     pub players: [Option<Player>; 2],
     pub(crate) game: T,
     pub turn: usize,
-    pub end: bool
+    pub end: bool,
+    pub status: usize
 }
 
-#[derive(Eq, PartialEq, Hash, Clone, Serialize, Deserialize)]
+#[derive(Eq, PartialEq, Hash, Clone, Serialize, Deserialize, Debug)]
 pub struct SessionID(pub String);
 
 //impl<T: Game + Sized + Clone + Send>
 impl<T: Game + Clone> Session<T> {
-    pub fn new(player: Player, game: T) -> Self {
+    pub fn new(mut player: Player, game: T) -> Self {
+        let session_id = Self::generate_session_id();
+        player.set_session_id(session_id.clone());
         Session {
-            session_id: Self::generate_session_id(),
+            session_id,
             players: [Some(player), None],
             game,
             turn: 0,
-            end: false
+            end: false,
+            status: 0
         }
     }
 
@@ -40,7 +44,7 @@ impl<T: Game + Clone> Session<T> {
     }
 
     pub fn can_join(&self) -> bool {
-        self.players[1].is_some()
+        !self.players[1].is_some()
     }
 
     pub fn add_player2(&mut self, mut player2: Player) {
@@ -51,6 +55,15 @@ impl<T: Game + Clone> Session<T> {
     pub fn get_session_id(&self) -> SessionID { self.session_id.clone() }
 
     pub fn get_player1_name(&self) -> String { self.players[1].clone().unwrap().get_username() }
+
+    pub fn print_status(&self) -> String {
+        match self.status {
+            1 => "Player 1 win the game",
+            2 => "Player 2 win the game",
+            3 => "DRAW!",
+            _ => ""
+        }.to_string()
+    }
 
     pub fn end(&mut self) {self.end = true;}
 }

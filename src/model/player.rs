@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use crate::model::session::SessionID;
 
-#[derive(Clone, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Deserialize, Eq, PartialEq, Debug)]
 pub struct Player {
     username: String,
     password: String,

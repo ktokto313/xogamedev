@@ -185,7 +185,7 @@ async fn handle_surrender(session_arc: Arc<RwLock<Session<impl Game + Clone>>>, 
     }
 }
 
-async fn save_and_shutdown(session: Arc<RwLock<Session<impl Game + Clone>>>, tx: mpsc::Sender<String>, status: i32, dao: DAO<impl Database>) {
+async fn save_and_shutdown(session: Arc<RwLock<Session<impl Game + Clone>>>, tx: mpsc::Sender<String>, status: usize, dao: DAO<impl Database>) {
     //TODO connect to DB and do shutdown
     // dao.save_session(session, status).await;
     tx.send("shutdown server please".to_string()).await.unwrap();
