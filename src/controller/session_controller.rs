@@ -6,7 +6,7 @@ use warp::http::StatusCode;
 use warp::path::param;
 use crate::dao::{DAO, Database};
 use crate::error::Error;
-use crate::error::Error::SessionNotExist;
+use crate::error::Error::{DatabaseError, SessionNotExist};
 use crate::game::Game;
 use crate::game::xo::XO;
 use crate::model::session::{Session, SessionID};
@@ -28,7 +28,10 @@ pub async fn get_session(active_sessions: Arc<RwLock<HashMap<SessionID,
     RwLock<Session<impl Game + Clone>>>>>) -> Result<impl warp::Reply, warp::Rejection> {
     clean_up_session(active_sessions.clone()).await;
 
-    let result: Vec<SessionID> = active_sessions.read().await.keys().cloned().collect();
+    let mut result: Vec<(SessionID, String)> = Vec::new();
+    for (session_id, session) in active_sessions.read().await.iter() {
+        result.push((session_id.clone(), session.read().await.players[0].clone().unwrap().get_username()));
+    }
     return Ok(warp::reply::json(&result));
 }
 
@@ -58,20 +61,6 @@ pub async fn clean_up_session(
         active_sessions.write().await.remove(&session_id);
     }
 }
-
-// pub async fn get_session_by_id(
-//     active_sessions: Arc<RwLock<HashMap<SessionID, RwLock<Session<XO>>>>>,
-//     session_id: String
-// ) -> Option<&'static RwLock<Session<XO>>> {
-//     active_sessions.clone().read().await.get(&SessionID(session_id))
-// }
-//
-// async fn check_session_validity(session: Option<&RwLock<Session<XO>>>) -> bool {
-//     if let Some(_) = session {
-//         return true;
-//     }
-//     false
-// }
 
 pub async fn handle_make_a_move(
     session_id: String,
@@ -181,6 +170,26 @@ pub async fn handle_surrender(
 }
 
 //todo implement scoreboard
+pub async fn handle_scoreboard(dao: DAO<impl Database>) -> Result<impl warp::Reply, warp::Rejection> {
+    //format!("| {:<20} | {:<20} | {:<12} \n {}");
+    //Player 1, player 2, status, game board
+    match dao.get_scoreboard().await {
+        Ok(vec) => {
+            let mut vec_result = Vec::new();
+            for session in vec {
+                vec_result.push((
+                    session.players[0].clone().unwrap().get_username(),
+                    session.players[1].clone().unwrap().get_username(),
+                    session.status.to_string(),
+                    session.game.print()
+                ))
+            }
+
+            Ok(warp::reply::with_status(serde_json::to_string(&vec_result).unwrap(), StatusCode::OK))
+        },
+        Err(e) => Err(warp::reject::custom(DatabaseError(e)))
+    }
+}
 
 async fn save_and_shutdown(mut session: &mut Session<impl Game + Clone>, status: usize, dao: DAO<impl Database>) {
     //TODO connect to DB and do shutdown

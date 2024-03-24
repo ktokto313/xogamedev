@@ -1,3 +1,4 @@
+use std::str::FromStr;
 use serde::{Deserialize, Serialize};
 use crate::game::Game;
 
@@ -5,22 +6,31 @@ use crate::game::Game;
 //A game module need player1 and player2 input stream, then someway to start, stop and get result
 #[derive(Clone, Serialize, Deserialize)]
 pub struct XO {
-    #[serde(borrow)]
-    board: [[&'static str;3];3],
+    board: [[String; 3]; 3],
     number_of_move: i32,
-    is_x: bool
+    is_x: bool,
 }
 
 impl XO {
     pub fn new() -> XO {
         XO {
-            board: [[" ";3];3],
+            board: [[" ".to_string(), " ".to_string(), " ".to_string()],
+                [" ".to_string(), " ".to_string(), " ".to_string()],
+                [" ".to_string(), " ".to_string(), " ".to_string()]],
             number_of_move: 0,
-            is_x: true
+            is_x: true,
         }
     }
 
-    fn check(array: [[&str; 3]; 3], row: usize, col: usize) -> bool {
+    pub fn new_xo_for_scoreboard(board: [[String; 3]; 3]) -> Self {
+        XO {
+            board,
+            number_of_move: 0,
+            is_x: true,
+        }
+    }
+
+    fn check(array: &[[String; 3]; 3], row: usize, col: usize) -> bool {
         let mut bool = true;
 
         //check top left to bottom right
@@ -80,7 +90,6 @@ impl XO {
 }
 
 impl Game for XO {
-
     //*
     // Main function of the XO return 1 if player 1 win, 2 if player 2 win, 0 if nothing happened
     // 3 if draw
@@ -98,14 +107,14 @@ impl Game for XO {
         if self.board[row][col] == " " {
             if self.is_x {
                 self.is_x = false;
-                self.board[row][col] = "X";
+                self.board[row][col] = "X".to_string();
             } else {
                 self.is_x = true;
-                self.board[row][col] = "O";
+                self.board[row][col] = "O".to_string();
             }
             self.number_of_move += 1;
         }
-        if Self::check(self.board, row, col) {
+        if Self::check(&self.board, row, col) {
             //X is the first player that move, and here is_x flipped, so it should be !is_x
             if !self.is_x {
                 return 1;
@@ -118,12 +127,20 @@ impl Game for XO {
 
     fn print(&self) -> String {
         let mut board = String::new();
-        for i in self.board {
+        self.board.iter().for_each(|i| {
             for j in i {
-                board.push_str( & * format ! ("{}|", j))
+                board.push_str(&*format!("{}|", j))
             }
             board.push_str("\n______\n");
-        }
+        });
         board
+    }
+
+    fn to_string(&self) -> String {
+        serde_json::to_string(self).unwrap()
+    }
+
+    fn from_string(board: &str) -> Self {
+        serde_json::from_str::<XO>(board).unwrap()
     }
 }

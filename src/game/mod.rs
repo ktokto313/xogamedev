@@ -8,4 +8,6 @@ pub trait Game {
     // */
     fn make_a_move(&mut self, player_input: usize) -> usize;
     fn print(&self) -> String;
+    fn to_string(&self) -> String;
+    fn from_string(string: &str) -> Self;
 }

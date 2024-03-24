@@ -7,13 +7,14 @@ use warp::http::StatusCode;
 use crate::dao::{DAO, Database};
 use crate::error::Error;
 use crate::game::Game;
+use crate::game::xo::XO;
 use crate::model::player::Player;
 
 #[derive(Clone, Deserialize)]
 pub struct Session<T> where T: Game + Clone {
     session_id: SessionID,
     pub players: [Option<Player>; 2],
-    pub(crate) game: T,
+    pub game: T,
     pub turn: usize,
     pub end: bool,
     pub status: usize
@@ -34,6 +35,17 @@ impl<T: Game + Clone> Session<T> {
             turn: 0,
             end: false,
             status: 0
+        }
+    }
+
+    pub fn new_session_for_scoreboard(session_id: i32, players: [Option<Player>; 2], status: String, board: String) -> Self {
+        Session {
+            session_id: SessionID(session_id.to_string()),
+            players,
+            game: T::from_string(board.as_str()),
+            turn: 0,
+            end: true,
+            status: status.parse::<usize>().unwrap()
         }
     }
 

@@ -51,7 +51,6 @@ async fn main() {
     let session_list_filter = warp::any().map(move || {session_list.clone()});
     let xo_filter = warp::any().map(|| {"XO".to_string()});
     let domain_filter = warp::any().and(warp::path("xogamedev"));
-    //TODO insert session_list_filter instead session_filter into functions
 
     let login_filter = warp::post()
         .and(domain_filter)
@@ -59,6 +58,7 @@ async fn main() {
         .and(warp::body::json())
         .and(dao_filter.clone())
         .and(warp::path::end())
+        .and(warp::path::)
         .and_then(authentication_controller::login);
 
     let register_filter = warp::post()
@@ -121,10 +121,11 @@ async fn main() {
         .and(dao_filter.clone())
         .and_then(session_controller::handle_surrender);
 
-    let scoreboard_filter = warp::post()
+    let scoreboard_filter = warp::get()
         .and(domain_filter.clone())
         .and(warp::path("scoreboard"))
         .and(warp::path::end())
+        .and(dao_filter)
         .and_then(session_controller::handle_scoreboard);
 
     let filter = login_filter
